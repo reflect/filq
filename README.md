@@ -44,4 +44,7 @@ invoke the `fromjson` function as a filter first:
 ```
 $ go build
 $ echo '{"amazing":["just","like","jq"]}' | ./basicq 'fromjson | .amazing[]'
+just
+like
+jq
 ```
