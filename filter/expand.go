@@ -24,11 +24,11 @@ func (e *Expand) Apply(ctx *context.Context, in context.Valuer) ([]context.Value
 			return nil, err
 		}
 
-		ex, ok := v.(context.Expandable)
+		ex, ok := v.(context.Iter)
 		if !ok {
 			return nil, errors.WithStack(&context.UnexpectedTypeError{
 				Wanted: []reflect.Type{
-					reflect.TypeOf((*context.Expandable)(nil)).Elem(),
+					reflect.TypeOf((*context.Iter)(nil)).Elem(),
 				},
 				Got: reflect.TypeOf(v),
 			})

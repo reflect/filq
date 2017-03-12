@@ -3,21 +3,20 @@ package parser
 import (
 	"testing"
 
-	"github.com/jmikkola/parsego/parser"
 	"github.com/reflect/filq/context"
 	"github.com/reflect/filq/filter"
-	"github.com/reflect/filq/types"
+	"github.com/reflect/parsego/parser"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStringParser(t *testing.T) {
 	r, err := parser.ParseString(stringParser(), `"test"`)
 	assert.NoError(t, err)
-	assert.Equal(t, types.Str("test"), r)
+	assert.Equal(t, "test", r)
 
 	r, err = parser.ParseString(stringParser(), `"tes\u0074\n"`)
 	assert.NoError(t, err)
-	assert.Equal(t, types.Str("test\n"), r)
+	assert.Equal(t, "test\n", r)
 
 	r, err = parser.ParseString(stringParser(), `"not terminated`)
 	assert.EqualError(t, err, "expected a character, got error Reached end of input at line 0, col 15")
@@ -112,6 +111,51 @@ func TestSelectorParser(t *testing.T) {
 	}, r)
 }
 
+func TestArrayParser(t *testing.T) {
+	r, err := parser.ParseString(arrayParser(), "[]")
+	assert.NoError(t, err)
+	assert.Equal(t, &filter.Cons{Filters: []filter.Filter{}}, r)
+
+	r, err = parser.ParseString(arrayParser(), "[1, 2, 3]")
+	assert.NoError(t, err)
+	assert.Equal(t, &filter.Cons{Filters: []filter.Filter{
+		&filter.Pipe{
+			Filter: &filter.Const{context.NewConstValuer(int64(1))},
+		},
+		&filter.Pipe{
+			Filter: &filter.Const{context.NewConstValuer(int64(2))},
+		},
+		&filter.Pipe{
+			Filter: &filter.Const{context.NewConstValuer(int64(3))},
+		},
+	}}, r)
+
+	r, err = parser.ParseString(arrayParser(), "[.[] | .test, []]")
+	assert.NoError(t, err)
+	assert.Equal(t, &filter.Cons{Filters: []filter.Filter{
+		&filter.Pipe{
+			Filter: &filter.Expand{
+				Filter: &filter.Selector{Recall: &context.PipeRecall{}, Tree: []filter.Filter{}},
+			},
+			Next: &filter.Pipe{
+				Filter: &filter.Selector{
+					Recall: &context.PipeRecall{},
+					Tree:   []filter.Filter{str("test")},
+				},
+			},
+		},
+		&filter.Pipe{
+			Filter: &filter.Cons{Filters: []filter.Filter{}},
+		},
+	}}, r)
+}
+
+func TestObjectParser(t *testing.T) {
+	r, err := parser.ParseString(objectParser(), "{}")
+	assert.NoError(t, err)
+	assert.Equal(t, &filter.Object{Entries: []filter.ObjectEntry{}}, r)
+}
+
 func TestExpandParser(t *testing.T) {
 	r, err := parser.ParseString(expandParser(), ".")
 	assert.NoError(t, err)
@@ -126,6 +170,14 @@ func TestExpandParser(t *testing.T) {
 		Filter: &filter.Selector{
 			Recall: &context.PipeRecall{},
 			Tree:   []filter.Filter{},
+		},
+	}, r)
+
+	r, err = parser.ParseString(expandParser(), "[][]")
+	assert.NoError(t, err)
+	assert.Equal(t, &filter.Expand{
+		Filter: &filter.Cons{
+			Filters: []filter.Filter{},
 		},
 	}, r)
 
@@ -272,5 +324,5 @@ func TestPipelineParser(t *testing.T) {
 }
 
 func str(in string) *filter.Const {
-	return &filter.Const{context.NewConstValuer(types.Str(in))}
+	return &filter.Const{context.NewConstValuer(in)}
 }

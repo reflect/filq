@@ -1,7 +1,7 @@
 package scanner
 
 import (
-	"github.com/jmikkola/parsego/parser/textpos"
+	"github.com/reflect/parsego/parser/textpos"
 )
 
 // EOFError is returned when RuneBacktrackingScanner reaches the end of a string.
@@ -25,6 +25,7 @@ type Scanner interface {
 	StartSnapshot()
 	RewindSnapshot()
 	PopSnapshot()
+	SwapSnapshot()
 }
 
 // snapshot records the state of a snapshot taken by a scanner.
@@ -97,4 +98,18 @@ func (s *StringScanner) PopSnapshot() {
 		panic("Bug: popped a snapshot that was never started")
 	}
 	s.lastSnap = s.lastSnap.next
+}
+
+// SwapSnapshot swaps the position of the previous two snapshots.
+func (s *StringScanner) SwapSnapshot() {
+	if s.lastSnap == nil || s.lastSnap.next == nil {
+		panic("Bug: swapping snapshots that were never started")
+	}
+
+	swap := s.lastSnap
+	next := s.lastSnap.next.next
+
+	s.lastSnap = s.lastSnap.next
+	s.lastSnap.next = swap
+	s.lastSnap.next.next = next
 }

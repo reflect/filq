@@ -36,13 +36,13 @@ func (o *Op2) Apply(ctx *context.Context, in context.Valuer) ([]context.Valuer, 
 			case "-":
 				out[k] = &op2NumFilter{fn: op2Sub, l: lv, r: rv}
 			case "<":
-				out[k] = &op2NumFilter{fn: op2Lt, l: lv, r: rv}
+				out[k] = &op2CmpFilter{fn: op2Lt, l: lv, r: rv}
 			case "<=":
-				out[k] = &op2NumFilter{fn: op2Lte, l: lv, r: rv}
+				out[k] = &op2CmpFilter{fn: op2Lte, l: lv, r: rv}
 			case ">":
-				out[k] = &op2NumFilter{fn: op2Gt, l: lv, r: rv}
+				out[k] = &op2CmpFilter{fn: op2Gt, l: lv, r: rv}
 			case ">=":
-				out[k] = &op2NumFilter{fn: op2Gte, l: lv, r: rv}
+				out[k] = &op2CmpFilter{fn: op2Gte, l: lv, r: rv}
 			case "==":
 				out[k] = &op2EqualFilter{l: lv, r: rv}
 			case "!=":

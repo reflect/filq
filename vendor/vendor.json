@@ -10,30 +10,6 @@
 			"revisionTime": "2016-12-17T20:04:45Z"
 		},
 		{
-			"checksumSHA1": "xBjs3BWU5Kyosw3KYw16rsFY7r0=",
-			"path": "github.com/jmikkola/parsego/parser",
-			"revision": "9136b35d95c88f41a2709620021c5ffa9f85795f",
-			"revisionTime": "2016-08-30T19:12:31Z"
-		},
-		{
-			"checksumSHA1": "0V1Kk8OQBn3CO3N9R54FjLboEZc=",
-			"path": "github.com/jmikkola/parsego/parser/result",
-			"revision": "9136b35d95c88f41a2709620021c5ffa9f85795f",
-			"revisionTime": "2016-08-30T19:12:31Z"
-		},
-		{
-			"checksumSHA1": "M536poey7XslOIQCBxa9PkuryeI=",
-			"path": "github.com/jmikkola/parsego/parser/scanner",
-			"revision": "9136b35d95c88f41a2709620021c5ffa9f85795f",
-			"revisionTime": "2016-08-30T19:12:31Z"
-		},
-		{
-			"checksumSHA1": "+lmwqPwBAaMdFD7K2vwxjDNu4Q0=",
-			"path": "github.com/jmikkola/parsego/parser/textpos",
-			"revision": "9136b35d95c88f41a2709620021c5ffa9f85795f",
-			"revisionTime": "2016-08-30T19:12:31Z"
-		},
-		{
 			"checksumSHA1": "ynJSWoF6v+3zMnh9R0QmmG6iGV8=",
 			"path": "github.com/pkg/errors",
 			"revision": "bfd5150e4e41705ded2129ec33379de1cb90b513",
@@ -45,6 +21,30 @@
 			"path": "github.com/pmezard/go-difflib/difflib",
 			"revision": "2402e8e7a02fc811447d11f881aa9746cdc57983",
 			"revisionTime": "2016-12-17T20:04:45Z"
+		},
+		{
+			"checksumSHA1": "8bd9+VqRrVqbt0voNrukgG54q04=",
+			"path": "github.com/reflect/parsego/parser",
+			"revision": "0da7f4aac455d124e4fc22e8fdd327a6618a1b33",
+			"revisionTime": "2017-03-11T22:40:18Z"
+		},
+		{
+			"checksumSHA1": "8niRA3XVByUIe7MGdHpMRacbXI0=",
+			"path": "github.com/reflect/parsego/parser/result",
+			"revision": "0da7f4aac455d124e4fc22e8fdd327a6618a1b33",
+			"revisionTime": "2017-03-11T22:40:18Z"
+		},
+		{
+			"checksumSHA1": "8/yHHkOLDy7/hDZQz1MtjR/uwnc=",
+			"path": "github.com/reflect/parsego/parser/scanner",
+			"revision": "0da7f4aac455d124e4fc22e8fdd327a6618a1b33",
+			"revisionTime": "2017-03-11T22:40:18Z"
+		},
+		{
+			"checksumSHA1": "OwODsLU2ZeSSfV6PLWl/MW0weyQ=",
+			"path": "github.com/reflect/parsego/parser/textpos",
+			"revision": "0da7f4aac455d124e4fc22e8fdd327a6618a1b33",
+			"revisionTime": "2017-03-11T22:40:18Z"
 		},
 		{
 			"checksumSHA1": "JXUVA1jky8ZX8w09p2t5KLs97Nc=",

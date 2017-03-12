@@ -9,8 +9,14 @@ package textpos
 //
 // Immutable data structures are somewhat inconvenient to write in Go.
 type TextPos struct {
-	line int
-	col  int
+	offset int
+	line   int
+	col    int
+}
+
+// Offset returns the character offset in the stream.
+func (t TextPos) Offset() int {
+	return t.offset
 }
 
 // Line returns the line number, starting at 0
@@ -34,7 +40,7 @@ func Range(start, end TextPos) TextRange {
 	return TextRange{start, end}
 }
 
-// Single returns a single-character range.
+// Single returns a zero-character range.
 func Single(pos TextPos) TextRange {
 	return TextRange{pos, pos}
 }
@@ -49,6 +55,11 @@ func (t TextRange) End() TextPos {
 	return t.end
 }
 
+// Length returns the length of this range.
+func (t TextRange) Length() int {
+	return t.end.Offset() - t.start.Offset()
+}
+
 // StartingPos returns the 0 position.
 func StartingPos() TextPos {
 	return TextPos{
@@ -58,23 +69,25 @@ func StartingPos() TextPos {
 }
 
 // Pos is a shorthand for creating a TextPos.
-func Pos(line, col int) TextPos {
-	return TextPos{line, col}
+func Pos(offset, line, col int) TextPos {
+	return TextPos{offset, line, col}
 }
 
 // AdvanceCol return a new TextPos with the column advanced by one.
 func (t TextPos) AdvanceCol() TextPos {
 	return TextPos{
-		col:  t.col + 1,
-		line: t.line,
+		offset: t.offset + 1,
+		col:    t.col + 1,
+		line:   t.line,
 	}
 }
 
 // AdvanceLine returns a new TextPos with the line advanced by one.
 func (t TextPos) AdvanceLine() TextPos {
 	return TextPos{
-		col:  0,
-		line: t.line + 1,
+		offset: t.offset + 1,
+		col:    0,
+		line:   t.line + 1,
 	}
 }
 

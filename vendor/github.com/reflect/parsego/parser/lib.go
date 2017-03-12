@@ -21,7 +21,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/jmikkola/parsego/parser/scanner"
+	"github.com/reflect/parsego/parser/scanner"
 )
 
 // ParseString parses the text in a string.

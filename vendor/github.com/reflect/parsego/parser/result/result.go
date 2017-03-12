@@ -3,7 +3,7 @@ package result
 import (
 	"fmt"
 
-	"github.com/jmikkola/parsego/parser/textpos"
+	"github.com/reflect/parsego/parser/textpos"
 )
 
 // ParseResult defines the values that can result from parsing.

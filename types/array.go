@@ -33,13 +33,13 @@ func (a Array) selectIndex(ctx *context.Context, idx int, tree []context.Valuer)
 
 	if len(tree) == 1 {
 		return context.NewConstValuer(sel), nil
-	} else if selectable, ok := sel.(context.Selectable); ok {
+	} else if selectable, ok := sel.(context.Sel); ok {
 		return selectable.Select(ctx, tree[1:])
 	}
 
 	return nil, &context.UnexpectedTypeError{
 		Wanted: []reflect.Type{
-			reflect.TypeOf((*context.Selectable)(nil)).Elem(),
+			reflect.TypeOf((*context.Sel)(nil)).Elem(),
 		},
 		Got: reflect.TypeOf(sel),
 	}
@@ -69,6 +69,63 @@ func (a Array) selectSlice(ctx *context.Context, slice Slice, tree []context.Val
 	return Array(out).Select(ctx, tree[1:])
 }
 
+func (a Array) Equal(ctx *context.Context, other context.Valuer) (bool, error) {
+	ov, err := other.Value(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	oa, ok := ov.(Array)
+	if !ok {
+		return false, nil
+	}
+
+	if len(oa) != len(a) {
+		return false, nil
+	}
+
+	for i, test := range a {
+		if ve, ok := test.(context.Eq); ok {
+			eq, err := ve.Equal(ctx, context.NewConstValuer(oa[i]))
+			if err != nil {
+				return false, err
+			}
+
+			if !eq {
+				return false, nil
+			}
+		} else if test != oa[i] {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func (a Array) Index(ctx *context.Context, key context.Valuer) (context.Valuer, error) {
+	v, err := key.Value(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, candidate := range a {
+		if ve, ok := v.(context.Eq); ok {
+			eq, err := ve.Equal(ctx, context.NewConstValuer(candidate))
+			if err != nil {
+				return nil, err
+			}
+
+			if eq {
+				return context.NewConstValuer(i), nil
+			}
+		} else if v == ctx.Convert(candidate) {
+			return context.NewConstValuer(i), nil
+		}
+	}
+
+	return context.NewConstValuer(nil), nil
+}
+
 func (a Array) Select(ctx *context.Context, tree []context.Valuer) (context.Valuer, error) {
 	v, err := tree[0].Value(ctx)
 	if err != nil {
@@ -76,17 +133,17 @@ func (a Array) Select(ctx *context.Context, tree []context.Valuer) (context.Valu
 	}
 
 	switch vt := v.(type) {
-	case int64:
+	case Int:
 		return a.selectIndex(ctx, int(vt), tree)
-	case float64:
+	case Float:
 		return a.selectIndex(ctx, int(vt), tree)
 	case Slice:
 		return a.selectSlice(ctx, vt, tree)
 	default:
 		return nil, errors.WithStack(&context.UnexpectedTypeError{
 			Wanted: []reflect.Type{
-				reflect.TypeOf(int64(0)),
-				reflect.TypeOf(float64(0)),
+				reflect.TypeOf(Int(0)),
+				reflect.TypeOf(Float(0)),
 				reflect.TypeOf(Slice{}),
 			},
 			Got: reflect.TypeOf(v),

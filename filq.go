@@ -3,6 +3,7 @@ package filq
 import (
 	"github.com/reflect/filq/context"
 	"github.com/reflect/filq/function"
+	"github.com/reflect/filq/lib/io"
 	"github.com/reflect/filq/lib/json"
 	"github.com/reflect/filq/lib/regex"
 	"github.com/reflect/filq/parser"
@@ -21,8 +22,9 @@ func NewContext() *context.Context {
 	types.DefineIn(def)
 
 	// Standard library.
-	regex.DefineIn(def)
+	io.DefineIn(def)
 	json.DefineIn(def)
+	regex.DefineIn(def)
 
 	return def
 }

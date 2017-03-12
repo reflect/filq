@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"unicode"
 
-	"github.com/jmikkola/parsego/parser"
 	"github.com/reflect/filq/context"
 	"github.com/reflect/filq/filter"
 	"github.com/reflect/filq/types"
+	"github.com/reflect/parsego/parser"
 )
 
 func nullParser() parser.Parser {
@@ -44,7 +44,7 @@ func numberParser() parser.Parser {
 func sliceParser() parser.Parser {
 	return parser.Map([]parser.Named{
 		{Name: "left", Parser: numberParser()},
-		{Parser: Sep(parser.Char(':'))},
+		{Parser: parser.Sep(parser.Char(':'))},
 		{Name: "right", Parser: numberParser()},
 	}, func(m map[string]interface{}) interface{} {
 		s := types.Slice{}
@@ -74,7 +74,7 @@ func stringParser() parser.Parser {
 		parser.Char('\\'),
 		parser.Or(u, parser.AnyChar('"', '\\', '/', 'b', 'f', 'n', 'r', 't')),
 	)
-	chars := NotRune(
+	chars := parser.NotRune(
 		unicode.IsControl,
 		func(c rune) bool { return c == '"' || c == '\\' },
 	)
@@ -85,7 +85,7 @@ func stringParser() parser.Parser {
 		parser.Sequence(parser.Char('"'), str, parser.Char('"')),
 		func(in interface{}) interface{} {
 			s, _ := strconv.Unquote(in.(string))
-			return types.Str(s)
+			return s
 		},
 	)
 }
@@ -157,24 +157,17 @@ func selectorMapper(m map[string]interface{}) interface{} {
 }
 
 func selectorParser(recall bool) parser.Parser {
-	ident := parser.ParseWith(
-		identParser(),
-		func(in interface{}) interface{} {
-			return types.Str(in.(string))
-		},
-	)
-
-	start := parser.Or(constParser(ident), constParser(stringParser()), subscriptParser())
+	start := parser.Or(constParser(identParser()), constParser(stringParser()), subscriptParser())
 	cont := parser.Or(
-		Second(parser.Char('.'), constParser(ident)),
-		Second(parser.Char('.'), constParser(stringParser())),
+		parser.Second(parser.Char('.'), constParser(identParser())),
+		parser.Second(parser.Char('.'), constParser(stringParser())),
 		subscriptParser(),
 	)
-	selector := Flatten(start, parser.ListOf(cont))
+	selector := parser.Flatten(start, parser.ListOf(cont))
 
 	all := parser.Map([]parser.Named{
 		{Parser: parser.Char('.')},
-		{Name: "selector", Parser: Default(selector, []interface{}{})},
+		{Name: "selector", Parser: parser.Default(selector, []interface{}{})},
 	}, selectorMapper)
 
 	if !recall {
@@ -184,9 +177,76 @@ func selectorParser(recall bool) parser.Parser {
 	return parser.Or(
 		parser.Map([]parser.Named{
 			{Name: "recall", Parser: variableParser()},
-			{Name: "selector", Parser: Default(parser.ListOf(cont), []interface{}{})},
+			{Name: "selector", Parser: parser.Default(parser.ListOf(cont), []interface{}{})},
 		}, selectorMapper),
 		all,
+	)
+}
+
+func arrayParser() parser.Parser {
+	array := parser.Surround(
+		parser.Sequence(parser.Char('['), parser.Whitespace()),
+		parser.ManySepBy(pipelineParser(), parser.Sep(parser.Char(','))),
+		parser.Sequence(parser.Whitespace(), parser.Char(']')),
+	)
+
+	return parser.ParseWith(
+		array,
+		func(in interface{}) interface{} {
+			seq := in.([]interface{})
+
+			filters := make([]filter.Filter, len(seq))
+			for i, f := range seq {
+				filters[i] = f.(filter.Filter)
+			}
+
+			return &filter.Cons{
+				Filters: filters,
+			}
+		},
+	)
+}
+
+func objectParser() parser.Parser {
+	keyExpression := parser.Surround(
+		parser.Sequence(parser.Char('('), parser.Whitespace()),
+		Scoped(pipelineParser()),
+		parser.Sequence(parser.Whitespace(), parser.Char(')')),
+	)
+	key := parser.Or(constParser(identParser()), constParser(stringParser()), keyExpression)
+	value := parser.Second(parser.Sep(parser.Char(':')), pipelineParser())
+
+	kv := parser.Map([]parser.Named{
+		{Name: "key", Parser: key},
+		{Name: "value", Parser: parser.Maybe(value)},
+	}, func(m map[string]interface{}) interface{} {
+		value, _ := m["value"].(filter.Filter)
+
+		return filter.ObjectEntry{
+			Key:   m["key"].(filter.Filter),
+			Value: value,
+		}
+	})
+
+	object := parser.Surround(
+		parser.Sequence(parser.Char('{'), parser.Whitespace()),
+		parser.ManySepBy(kv, parser.Sep(parser.Char(','))),
+		parser.Sequence(parser.Whitespace(), parser.Char('}')),
+	)
+
+	return parser.ParseWith(
+		object,
+		func(in interface{}) interface{} {
+			seq := in.([]interface{})
+			entries := make([]filter.ObjectEntry, len(seq))
+			for i, entry := range seq {
+				entries[i] = entry.(filter.ObjectEntry)
+			}
+
+			return &filter.Object{
+				Entries: entries,
+			}
+		},
 	)
 }
 
@@ -202,12 +262,12 @@ func expandParser() parser.Parser {
 		return in
 	}
 
-	expansion := parser.Sequence(parser.Char('['), Whitespace(), parser.Char(']'))
-	start := parser.ParseWith(Postfix(expansion, selectorParser(true)), mapper)
+	expansion := parser.Sequence(parser.Char('['), parser.Whitespace(), parser.Char(']'))
+	start := parser.ParseWith(Postfix(expansion, parser.Or(selectorParser(true), arrayParser(), objectParser())), mapper)
 	cont := parser.ParseWith(Postfix(expansion, selectorParser(false)), mapper)
 
 	return parser.ParseWith(
-		Flatten(start, parser.ListOf(cont)),
+		parser.Flatten(start, parser.ListOf(cont)),
 		func(in interface{}) interface{} {
 			seq := in.([]interface{})
 			if len(seq) == 1 {
@@ -231,13 +291,13 @@ func expandParser() parser.Parser {
 }
 
 func funcParser() parser.Parser {
-	sep := Sep(parser.Char(';'))
+	sep := parser.Sep(parser.Char(';'))
 
 	argumentParser := parser.Map([]parser.Named{
 		{Parser: parser.Char('(')},
-		{Parser: Whitespace()},
+		{Parser: parser.Whitespace()},
 		{Name: "arguments", Parser: parser.ManySepBy(pipelineParser(), sep)},
-		{Parser: Whitespace()},
+		{Parser: parser.Whitespace()},
 		{Parser: parser.Char(')')},
 	}, func(m map[string]interface{}) interface{} {
 		seq := m["arguments"].([]interface{})
@@ -265,9 +325,9 @@ func funcParser() parser.Parser {
 
 func exprParser() parser.Parser {
 	pipeline := parser.Surround(
-		Sep(parser.Char('(')),
+		parser.Sep(parser.Char('(')),
 		Scoped(pipelineParser()),
-		Sep(parser.Char(')')),
+		parser.Sep(parser.Char(')')),
 	)
 
 	var mapper func(in interface{}) interface{}
@@ -290,22 +350,27 @@ func exprParser() parser.Parser {
 
 	return parser.Lazy(func() parser.Parser {
 		base := funcParser()
-		base = parser.Or(constParser(parser.Or(nullParser(), boolParser(), stringParser(), numberParser())), base)
+		base = parser.Or(constParser(parser.Or(
+			nullParser(),
+			boolParser(),
+			stringParser(),
+			numberParser(),
+		)), base)
 		base = parser.Or(pipeline, expandParser(), base)
 		base = NewOperatorTable().
-			LeftInfix(Sep(parser.Token("*")), 90).
-			LeftInfix(Sep(parser.Token("/")), 90).
-			LeftInfix(Sep(parser.Token("+")), 90).
-			LeftInfix(Sep(parser.Token("-")), 90).
-			LeftInfix(Sep(parser.Token("<=")), 60).
-			LeftInfix(Sep(parser.Token("<")), 60).
-			LeftInfix(Sep(parser.Token(">=")), 60).
-			LeftInfix(Sep(parser.Token(">")), 60).
-			LeftInfix(Sep(parser.Token("==")), 60).
-			LeftInfix(Sep(parser.Token("!=")), 60).
-			Prefix(Sep(parser.Token("not")), 50).
-			LeftInfix(Sep(parser.Token("and")), 40).
-			LeftInfix(Sep(parser.Token("or")), 30).
+			LeftInfix(parser.Sep(parser.Token("*")), 90).
+			LeftInfix(parser.Sep(parser.Token("/")), 90).
+			LeftInfix(parser.Sep(parser.Token("+")), 90).
+			LeftInfix(parser.Sep(parser.Token("-")), 90).
+			LeftInfix(parser.Sep(parser.Token("<=")), 70).
+			LeftInfix(parser.Sep(parser.Token("<")), 70).
+			LeftInfix(parser.Sep(parser.Token(">=")), 70).
+			LeftInfix(parser.Sep(parser.Token(">")), 70).
+			LeftInfix(parser.Sep(parser.Token("==")), 60).
+			LeftInfix(parser.Sep(parser.Token("!=")), 60).
+			Prefix(parser.Sep(parser.Token("not")), 50).
+			LeftInfix(parser.Sep(parser.Token("and")), 40).
+			LeftInfix(parser.Sep(parser.Token("or")), 30).
 			Parser(base)
 
 		return parser.ParseWith(base, mapper)
@@ -322,8 +387,8 @@ func assignmentParser() parser.Parser {
 }
 
 func pipelineParser() parser.Parser {
-	pipe := Sep(parser.Char('|'))
-	assignment := N(3,
+	pipe := parser.Sep(parser.Char('|'))
+	assignment := parser.N(3,
 		parser.Whitespace1(),
 		parser.Token("as"),
 		parser.Whitespace1(),
@@ -345,7 +410,7 @@ func pipelineParser() parser.Parser {
 	}
 
 	return parser.Lazy(func() parser.Parser {
-		next := Second(pipe, pipelineParser())
+		next := parser.Second(pipe, pipelineParser())
 
 		conts := parser.Or(
 			parser.Map([]parser.Named{
@@ -384,9 +449,9 @@ func (p *Parser) ParseString(in string) (filter.Filter, error) {
 
 func NewParser() *Parser {
 	initial := parser.Surround(
-		Whitespace(),
+		parser.Whitespace(),
 		Scoped(pipelineParser()),
-		Whitespace(),
+		parser.Whitespace(),
 	)
 
 	consumed := parser.ParseWith(
@@ -397,6 +462,6 @@ func NewParser() *Parser {
 	)
 
 	return &Parser{
-		backend: First(consumed, parser.EOF()),
+		backend: parser.First(consumed, parser.EOF()),
 	}
 }

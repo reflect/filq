@@ -1,5 +1,9 @@
 package parser
 
+import (
+	"unicode"
+)
+
 // Digit parses a single digit.
 func Digit() Parser {
 	return CharRange('0', '9')
@@ -75,7 +79,7 @@ func Digits() Parser {
 
 // WhitespaceChar parses a single whitespace character
 func WhitespaceChar() Parser {
-	return AnyChar(' ', '\n', '\t', '\b', '\v')
+	return IsRune(unicode.IsSpace)
 }
 
 // Whitespace parses zero or more whitespace characters
@@ -101,14 +105,66 @@ func TokenAs(token string, value interface{}) Parser {
 	return ParseAs(Token(token), value)
 }
 
-// Surround surrounds the inner parser with the left and right
-// parsers, but then returns the value from just the inner parser.
+// N runs the given parsers as a sequence, but returns only the result of the
+// nth parser, counting from 0.
+func N(which int, parsers ...Parser) Parser {
+	return ParseWith(
+		AllOf(parsers...),
+		func(in interface{}) interface{} {
+			seq := in.([]interface{})
+			return seq[which]
+		},
+	)
+}
+
+// First is equivalent to N(0, parsers...).
+func First(parsers ...Parser) Parser {
+	return N(0, parsers...)
+}
+
+// Second is equivalent to N(1, parsers...).
+func Second(parsers ...Parser) Parser {
+	return N(1, parsers...)
+}
+
+// Default runs the given parser and returns its result on success, or a parser
+// that always returns the other value on failure.
+func Default(in Parser, otherwise interface{}) Parser {
+	return Or(in, Always(otherwise))
+}
+
+// Flatten reduces lists of lists of parse results to a single list.
+func Flatten(parsers ...Parser) Parser {
+	var flatten func(in []interface{}) []interface{}
+	flatten = func(in []interface{}) (out []interface{}) {
+		for _, c := range in {
+			if seq, ok := c.([]interface{}); ok {
+				out = append(out, flatten(seq)...)
+			} else {
+				out = append(out, c)
+			}
+		}
+
+		return
+	}
+
+	return ParseWith(
+		AllOf(parsers...),
+		func(in interface{}) interface{} {
+			return flatten(in.([]interface{}))
+		},
+	)
+}
+
+// Surround surrounds the inner parser with the left and right parsers, but
+// then returns the value from just the inner parser. It is equivalent to
+// N(1, left, inner, right).
 func Surround(left, inner, right Parser) Parser {
-	return Map([]Named{
-		{"", left},
-		{"inner", inner},
-		{"", right},
-	}, func(m map[string]interface{}) interface{} {
-		return m["inner"]
-	})
+	return Second(left, inner, right)
+}
+
+// Sep surrounds the given parser with whitespace. It is equivalent to
+// Surround(Whitespace(), in, Whitespace()).
+func Sep(in Parser) Parser {
+	return Surround(Whitespace(), in, Whitespace())
 }

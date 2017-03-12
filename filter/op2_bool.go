@@ -7,6 +7,8 @@ import (
 	"github.com/reflect/filq/context"
 )
 
+type op2BoolFunc func(a, b bool) interface{}
+
 func op2And(a, b bool) interface{} { return a && b }
 func op2Or(a, b bool) interface{}  { return a || b }
 

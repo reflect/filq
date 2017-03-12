@@ -14,6 +14,21 @@ import (
 
 type Bytes []byte
 
+func (b Bytes) Equal(ctx *context.Context, other context.Valuer) (bool, error) {
+	ov, err := other.Value(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	if os, ok := ov.(Str); ok {
+		return bytes.Equal(b, []byte(os)), nil
+	} else if ob, ok := ov.(Bytes); ok {
+		return bytes.Equal(b, ob), nil
+	}
+
+	return false, nil
+}
+
 func (b Bytes) Format(f fmt.State, c rune) {
 	if c != 'v' || !f.Flag('+') {
 		FormatDefault(f, c, []byte(b))
@@ -70,7 +85,7 @@ func (b Bytes) Index(ctx *context.Context, key context.Valuer) (context.Valuer, 
 		return context.NewConstValuer(nil), nil
 	}
 
-	return context.NewConstValuer(int64(r)), nil
+	return context.NewConstValuer(r), nil
 }
 
 type BytesConverter struct{}

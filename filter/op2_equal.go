@@ -15,14 +15,24 @@ func (f *op2EqualFilter) Value(ctx *context.Context) (interface{}, error) {
 		return nil, err
 	}
 
-	rv, err := f.r.Value(ctx)
-	if err != nil {
-		return nil, err
+	var equal bool
+	if eq, ok := lv.(context.Eq); ok {
+		equal, err = eq.Equal(ctx, f.r)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		rv, err := f.r.Value(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		equal = rv == lv
 	}
 
 	if f.inverse {
-		return lv != rv, nil
+		return !equal, nil
 	}
 
-	return lv == rv, nil
+	return equal, nil
 }

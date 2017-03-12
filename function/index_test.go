@@ -15,9 +15,9 @@ func TestIndex(t *testing.T) {
 		Str, Search string
 		Expected    interface{}
 	}{
-		{"this longcat is long", "long", int64(5)},
+		{"this longcat is long", "long", 5},
 		{"this longcat is long", "short", nil},
-		{"zero is the loneliest number", "zero", int64(0)},
+		{"zero is the loneliest number", "zero", 0},
 	}
 
 	for _, cond := range conds {

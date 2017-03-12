@@ -9,7 +9,7 @@ import (
 )
 
 type entrySelector struct {
-	e *Entry
+	e Entry
 	v context.Valuer
 }
 
@@ -48,11 +48,11 @@ type Entry struct {
 	Key, Value interface{}
 }
 
-func (e *Entry) Format(f fmt.State, c rune) {
+func (e Entry) Format(f fmt.State, c rune) {
 	fmt.Fprintf(f, "%+v = %+v", e.Key, e.Value)
 }
 
-func (e *Entry) Select(ctx *context.Context, tree []context.Valuer) (context.Valuer, error) {
+func (e Entry) Select(ctx *context.Context, tree []context.Valuer) (context.Valuer, error) {
 	if len(tree) != 1 {
 		return context.NewConstValuer(nil), nil
 	}
@@ -61,5 +61,5 @@ func (e *Entry) Select(ctx *context.Context, tree []context.Valuer) (context.Val
 }
 
 func NewEntryValuer(key, value interface{}) context.Valuer {
-	return context.NewConstValuer(&Entry{Key: key, Value: value})
+	return context.NewConstValuer(Entry{Key: key, Value: value})
 }

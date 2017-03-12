@@ -56,16 +56,63 @@ func (o Object) Select(ctx *context.Context, tree []context.Valuer) (context.Val
 
 	if len(tree) == 1 {
 		return context.NewConstValuer(sel), nil
-	} else if selectable, ok := sel.(context.Selectable); ok {
+	} else if selectable, ok := sel.(context.Sel); ok {
 		return selectable.Select(ctx, tree[1:])
 	}
 
 	return nil, errors.WithStack(&context.UnexpectedTypeError{
 		Wanted: []reflect.Type{
-			reflect.TypeOf((*context.Selectable)(nil)).Elem(),
+			reflect.TypeOf((*context.Sel)(nil)).Elem(),
 		},
 		Got: reflect.TypeOf(sel),
 	})
+}
+
+func (o Object) Equal(ctx *context.Context, other context.Valuer) (bool, error) {
+	ov, err := other.Value(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	if ov == nil {
+		return false, nil
+	}
+
+	oo, ok := ov.(Object)
+	if !ok {
+		return false, errors.WithStack(&context.UnexpectedTypeError{
+			Wanted: []reflect.Type{
+				reflect.TypeOf(Object(map[string]interface{}{})),
+			},
+			Got: reflect.TypeOf(ov),
+		})
+	}
+
+	if len(oo) != len(o) {
+		return false, nil
+	}
+
+	for key, value := range o {
+		other, ok := oo[key]
+		if !ok {
+			return false, nil
+		}
+
+		if ve, ok := value.(context.Eq); ok {
+			eq, err := ve.Equal(ctx, context.NewConstValuer(other))
+			if err != nil {
+				return false, err
+			}
+
+			if !eq {
+				return false, nil
+			}
+		} else if value != other {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 func (o Object) Expand(ctx *context.Context) ([]context.Valuer, error) {

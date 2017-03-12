@@ -3,7 +3,7 @@ package parser
 import (
 	"testing"
 
-	"github.com/jmikkola/parsego/parser"
+	"github.com/reflect/parsego/parser"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -96,5 +96,19 @@ func TestOperatorTable(t *testing.T) {
 			},
 			Right: "30",
 		},
+	}, r)
+
+	p = NewOperatorTable().
+		LeftInfix(parser.Sep(parser.Token("<=")), 70).
+		LeftInfix(parser.Sep(parser.Token("<")), 70).
+		LeftInfix(parser.Sep(parser.Token(">=")), 70).
+		LeftInfix(parser.Sep(parser.Token(">")), 70).
+		Parser(parser.Digits())
+	r, err = parser.ParseString(parser.First(p, parser.EOF()), "1 <= 2")
+	assert.NoError(t, err)
+	assert.Equal(t, &BinaryOperation{
+		Operator: "<=",
+		Left:     "1",
+		Right:    "2",
 	}, r)
 }

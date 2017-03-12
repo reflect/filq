@@ -10,7 +10,7 @@ package parser
 import (
 	"sort"
 
-	"github.com/jmikkola/parsego/parser"
+	"github.com/reflect/parsego/parser"
 )
 
 type OperatorAssociativity int
@@ -146,7 +146,7 @@ func (ot *OperatorTable) slice(begin, end int) parser.Parser {
 		parsers[i] = ot.ops[i+begin].p
 	}
 
-	return parser.Or(parsers...)
+	return parser.Longest(parsers...)
 }
 
 func (ot *OperatorTable) build(op parser.Parser, associativity OperatorAssociativity, operand parser.Parser) parser.Parser {
@@ -213,7 +213,7 @@ func Postfix(op, operand parser.Parser) parser.Parser {
 }
 
 func LeftInfix(op, operand parser.Parser) parser.Parser {
-	return Next(operand, func(first interface{}) parser.Parser {
+	return parser.Next(operand, func(first interface{}) parser.Parser {
 		cont := parser.Map([]parser.Named{
 			{Name: "operator", Parser: op},
 			{Name: "operand", Parser: operand},
@@ -287,7 +287,7 @@ func RightInfix(op, operand parser.Parser) parser.Parser {
 }
 
 func NonAssociativeInfix(op, operand parser.Parser) parser.Parser {
-	return Next(operand, func(a interface{}) parser.Parser {
+	return parser.Next(operand, func(a interface{}) parser.Parser {
 		shift := parser.Map([]parser.Named{
 			{Name: "operator", Parser: op},
 			{Name: "operand", Parser: operand},
@@ -298,6 +298,6 @@ func NonAssociativeInfix(op, operand parser.Parser) parser.Parser {
 				Right:    m["operand"],
 			}
 		})
-		return parser.Or(shift, Always(a))
+		return parser.Or(shift, parser.Always(a))
 	})
 }

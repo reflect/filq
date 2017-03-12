@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/jmikkola/parsego/parser/result"
-	"github.com/jmikkola/parsego/parser/scanner"
-	"github.com/jmikkola/parsego/parser/textpos"
+	"github.com/reflect/parsego/parser/result"
+	"github.com/reflect/parsego/parser/scanner"
+	"github.com/reflect/parsego/parser/textpos"
 )
 
 // Parser defines the interface implemented by all combinable parsers.
@@ -161,12 +161,18 @@ func (p *CharSetParser) Parse(sc scanner.Scanner) result.ParseResult {
 // SeqParser combines multiple parsers in sequence.
 type SeqParser struct {
 	parsers []Parser
+	combine bool
+}
+
+// AllOf returns a parser that runs each parser in series.
+func AllOf(parsers ...Parser) Parser {
+	return &SeqParser{parsers: parsers, combine: false}
 }
 
 // Sequence returns a parser that runs each given parser in series and
 // combines the result.
 func Sequence(parsers ...Parser) Parser {
-	return &SeqParser{parsers}
+	return &SeqParser{parsers: parsers, combine: true}
 }
 
 // Parse parses the input.
@@ -186,7 +192,14 @@ func (p *SeqParser) Parse(sc scanner.Scanner) result.ParseResult {
 		results = append(results, innerResult.Result())
 	}
 
-	return result.Success(textpos.Range(start, end), cleanupResult(results))
+	var output interface{}
+	if p.combine {
+		output = cleanupResult(results)
+	} else {
+		output = results
+	}
+
+	return result.Success(textpos.Range(start, end), output)
 }
 
 func cleanupResult(results []interface{}) interface{} {
@@ -408,4 +421,189 @@ func (p *IgnoreParser) Parse(sc scanner.Scanner) result.ParseResult {
 		return result.Success(r.TextRange(), "")
 	}
 	return r
+}
+
+// IsRuneFunc is a function that returns true if the given rune satisfies its
+// condition.
+type IsRuneFunc func(c rune) bool
+
+// IsRuneParser runs a single rune of input through the given satisfaction
+// functions, and returns success if any functions succeed or fail, depending
+// on whether it is inverted.
+type IsRuneParser struct {
+	fns    []IsRuneFunc
+	invert bool
+}
+
+// IsRune tests whether a single character matches the given rune satisfaction
+// functions, and returns success if any function succeeds.
+func IsRune(fns ...IsRuneFunc) Parser {
+	return &IsRuneParser{fns: fns, invert: false}
+}
+
+// Parse parses the input.
+func (p *IsRuneParser) Parse(sc scanner.Scanner) result.ParseResult {
+	start := sc.GetPos()
+	r, err := sc.Read()
+	if err != nil {
+		return fail(sc.GetPos(), "expected a character, got error %v", err)
+	}
+
+	if p.invert {
+		for _, fn := range p.fns {
+			if fn(r) {
+				return fail(sc.GetPos(), "expected a unicode character in range, got %c", r)
+			}
+		}
+
+		return result.Success(textpos.Range(start, sc.GetPos()), string(r))
+	}
+
+	for _, fn := range p.fns {
+		if fn(r) {
+			return result.Success(textpos.Range(start, sc.GetPos()), string(r))
+		}
+	}
+
+	return fail(sc.GetPos(), "expected a unicode character in range, got %c", r)
+}
+
+// NotRune tests whether a single character matches the given rune satisfaction
+// functions, and returns success if any function fails.
+func NotRune(fns ...IsRuneFunc) Parser {
+	return &IsRuneParser{fns: fns, invert: true}
+}
+
+// AlwaysParser always returns the value associated with it.
+type AlwaysParser struct {
+	value interface{}
+}
+
+// Always always returns the given value.
+func Always(value interface{}) Parser {
+	return &AlwaysParser{value: value}
+}
+
+// Parse parses the input.
+func (p *AlwaysParser) Parse(sc scanner.Scanner) result.ParseResult {
+	return result.Success(textpos.Single(sc.GetPos()), p.value)
+}
+
+// NextParser calls an inner parser, and if it succeeds, passes the result to
+// the given function, which determines the next parser to run.
+type NextParser struct {
+	inner Parser
+	fn    func(interface{}) Parser
+}
+
+// Next runs an inner parser, and if it succeeds, passes the result to the
+// given function, which determines the next parser to run.
+func Next(in Parser, next func(interface{}) Parser) Parser {
+	return &NextParser{
+		inner: in,
+		fn:    next,
+	}
+}
+
+// Parse parses the input.
+func (p *NextParser) Parse(sc scanner.Scanner) result.ParseResult {
+	result := p.inner.Parse(sc)
+	if !result.Matched() {
+		return result
+	}
+
+	next := p.fn(result.Result())
+	return next.Parse(sc)
+}
+
+// LongestParser runs all the parsers associated with it and returns the one
+// with the longest match.
+type LongestParser struct {
+	parsers []Parser
+}
+
+// Longest runs each of the given parsers in order and returns the result from
+// the one with the longest match.
+func Longest(parsers ...Parser) Parser {
+	return &LongestParser{parsers}
+}
+
+// Parse parses the input.
+func (p *LongestParser) Parse(sc scanner.Scanner) result.ParseResult {
+	if len(p.parsers) == 0 {
+		return fail(sc.GetPos(), "no parser matched")
+	} else if len(p.parsers) == 1 {
+		return p.parsers[0].Parse(sc)
+	}
+
+	res, _ := p.one(sc, p.parsers, -1)
+
+	if res == nil {
+		return fail(sc.GetPos(), "no parser matched")
+	}
+
+	// The top snapshot is the winning end position. We'll rewind to it so the
+	// next parser is in the right place.
+	// S: []
+	sc.RewindSnapshot()
+
+	return res
+}
+
+func (p *LongestParser) one(sc scanner.Scanner, remaining []Parser, max int) (result.ParseResult, int) {
+	if len(remaining) == 0 {
+		// S: []
+		return nil, -1
+	}
+
+	inner := remaining[0]
+	rest := remaining[1:]
+
+	// Create a snapshot for this run.
+	// S: [Initial]
+	sc.StartSnapshot()
+
+	// Run this parser.
+	res := inner.Parse(sc)
+	if !res.Matched() {
+		// If it didn't match we just try the next one.
+		// S: []
+		sc.RewindSnapshot()
+		return p.one(sc, rest, max)
+	}
+
+	nlen := res.TextRange().Length()
+	if nlen > max {
+		max = nlen
+	}
+
+	// Create a new snapshot at the result location.
+	// S: [Initial, OurMatch]
+	sc.StartSnapshot()
+
+	// Swap back to the start position to run the next parser.
+	// S: [OurMatch, Initial]
+	sc.SwapSnapshot()
+
+	// S: [OurMatch]
+	sc.RewindSnapshot()
+
+	// If next is nil, S: [OurMatch]
+	// Otherwise, S: [OurMatch, TheirMatch]
+	next, nlen := p.one(sc, rest, max)
+	if nlen > max {
+		// They win. Remove our snapshot.
+		// S: [TheirMatch, OurMatch]
+		sc.SwapSnapshot()
+		res, max = next, nlen
+	}
+
+	if next != nil {
+		// If we got a result, we remove whatever the wrong one is from the
+		// top of the stack.
+		// S: [LongestMatch]
+		sc.PopSnapshot()
+	}
+
+	return res, max
 }

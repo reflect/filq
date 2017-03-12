@@ -14,11 +14,12 @@ func (e *VariableNotDefinedError) Error() string {
 }
 
 type FunctionNotDefinedError struct {
-	Name string
+	Name  string
+	Arity int
 }
 
 func (e *FunctionNotDefinedError) Error() string {
-	return fmt.Sprintf("function %q not defined", e.Name)
+	return fmt.Sprintf("function %s/%d not defined", e.Name, e.Arity)
 }
 
 type UnexpectedTypeError struct {

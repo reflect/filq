@@ -51,11 +51,11 @@ func (s *Selector) Apply(ctx *context.Context, in context.Valuer) ([]context.Val
 			return nil, err
 		}
 
-		selector, ok := v.(context.Selectable)
+		selector, ok := v.(context.Sel)
 		if !ok {
 			return nil, errors.WithStack(&context.UnexpectedTypeError{
 				Wanted: []reflect.Type{
-					reflect.TypeOf((*context.Selectable)(nil)).Elem(),
+					reflect.TypeOf((*context.Sel)(nil)).Elem(),
 				},
 				Got: reflect.TypeOf(v),
 			})

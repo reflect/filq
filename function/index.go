@@ -20,11 +20,11 @@ func Index(ctx *context.Context, in context.Valuer, search []context.Valuer) ([]
 		return nil, err
 	}
 
-	vs, ok := v.(context.Indexable)
+	vs, ok := v.(context.Idx)
 	if !ok {
 		return nil, errors.WithStack(&context.UnexpectedTypeError{
 			Wanted: []reflect.Type{
-				reflect.TypeOf((*context.Indexable)(nil)).Elem(),
+				reflect.TypeOf((*context.Idx)(nil)).Elem(),
 			},
 			Got: reflect.TypeOf(v),
 		})

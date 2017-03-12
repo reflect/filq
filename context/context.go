@@ -50,7 +50,7 @@ func (c *Context) Function(name string, arity int) (Function, error) {
 		return c.next.Function(name, arity)
 	}
 
-	return nil, errors.WithStack(&FunctionNotDefinedError{Name: name})
+	return nil, errors.WithStack(&FunctionNotDefinedError{Name: name, Arity: arity})
 }
 
 func (c *Context) Convert(in interface{}) interface{} {
