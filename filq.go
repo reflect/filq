@@ -6,6 +6,7 @@ import (
 	"github.com/reflect/filq/lib/io"
 	"github.com/reflect/filq/lib/json"
 	"github.com/reflect/filq/lib/regex"
+	"github.com/reflect/filq/lib/time"
 	"github.com/reflect/filq/parser"
 	"github.com/reflect/filq/types"
 )
@@ -25,6 +26,7 @@ func NewContext() *context.Context {
 	io.DefineIn(def)
 	json.DefineIn(def)
 	regex.DefineIn(def)
+	time.DefineIn(def)
 
 	return def
 }

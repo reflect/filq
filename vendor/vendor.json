@@ -47,6 +47,12 @@
 			"revisionTime": "2017-03-11T22:40:18Z"
 		},
 		{
+			"checksumSHA1": "vMPNHBnAP7fKxXCAEuVfLd3Spvw=",
+			"path": "github.com/reflect/xparse/xtime",
+			"revision": "9410c5d0407f94848c4a1a69516c590a20d7a62f",
+			"revisionTime": "2017-10-13T20:49:27Z"
+		},
+		{
 			"checksumSHA1": "JXUVA1jky8ZX8w09p2t5KLs97Nc=",
 			"path": "github.com/stretchr/testify/assert",
 			"revision": "2402e8e7a02fc811447d11f881aa9746cdc57983",

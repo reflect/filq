@@ -2,6 +2,7 @@ package types
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/reflect/filq/context"
 )
@@ -18,4 +19,5 @@ func DefineIn(ctx *context.Context) {
 	ctx.DefineConverter(reflect.TypeOf(int(0)), &IntIntConverter{})
 	ctx.DefineConverter(reflect.TypeOf(map[string]interface{}{}), &ObjectConverter{})
 	ctx.DefineConverter(reflect.TypeOf(""), &StrConverter{})
+	ctx.DefineConverter(reflect.TypeOf(time.Time{}), &TimeConverter{})
 }
