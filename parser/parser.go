@@ -68,24 +68,49 @@ func sliceParser() parser.Parser {
 }
 
 func stringParser() parser.Parser {
+	pipeline := parser.Surround(
+		parser.Sequence(parser.Char('('), parser.Whitespace()),
+		Scoped(pipelineParser()),
+		parser.Sequence(parser.Whitespace(), parser.Char(')')),
+	)
+
 	hex := parser.Or(parser.CharRange('a', 'f'), parser.CharRange('A', 'F'), parser.Digit())
 	u := parser.Sequence(parser.Char('u'), hex, hex, hex, hex)
-	escape := parser.Sequence(
-		parser.Char('\\'),
-		parser.Or(u, parser.AnyChar('"', '\\', '/', 'b', 'f', 'n', 'r', 't')),
+
+	escape := parser.ParseWith(
+		parser.N(1,
+			parser.Char('\\'),
+			parser.Or(u, pipeline, parser.AnyChar('"', '\\', '/', 'b', 'f', 'n', 'r', 't')),
+		),
+		func(ec interface{}) interface{} {
+			if _, ok := ec.(filter.Filter); ok {
+				return ec
+			}
+
+			r, _, _, _ := strconv.UnquoteChar(fmt.Sprintf(`\%s`, ec), '"')
+			return &filter.Const{
+				Valuer: context.NewConstValuer(string(r)),
+			}
+		},
 	)
-	chars := parser.NotRune(
+	chars := parser.Many1(parser.NotRune(
 		unicode.IsControl,
 		func(c rune) bool { return c == '"' || c == '\\' },
-	)
-	valid := parser.Or(chars, escape)
-	str := parser.Many(valid)
+	))
+	valid := parser.Or(constParser(chars), escape)
+	str := parser.ListOf(valid)
 
 	return parser.ParseWith(
-		parser.Sequence(parser.Char('"'), str, parser.Char('"')),
+		parser.Surround(parser.Char('"'), str, parser.Char('"')),
 		func(in interface{}) interface{} {
-			s, _ := strconv.Unquote(in.(string))
-			return s
+			seq := in.([]interface{})
+
+			filters := make([]filter.Filter, len(seq))
+			for i, c := range seq {
+				filters[i] = c.(filter.Filter)
+			}
+
+			return &filter.String{Filters: filters}
 		},
 	)
 }
@@ -157,10 +182,10 @@ func selectorMapper(m map[string]interface{}) interface{} {
 }
 
 func selectorParser(recall bool) parser.Parser {
-	start := parser.Or(constParser(identParser()), constParser(stringParser()), subscriptParser())
+	start := parser.Or(constParser(identParser()), stringParser(), subscriptParser())
 	cont := parser.Or(
 		parser.Second(parser.Char('.'), constParser(identParser())),
-		parser.Second(parser.Char('.'), constParser(stringParser())),
+		parser.Second(parser.Char('.'), stringParser()),
 		subscriptParser(),
 	)
 	selector := parser.Flatten(start, parser.ListOf(cont))
@@ -213,7 +238,7 @@ func objectParser() parser.Parser {
 		Scoped(pipelineParser()),
 		parser.Sequence(parser.Whitespace(), parser.Char(')')),
 	)
-	key := parser.Or(constParser(identParser()), constParser(stringParser()), keyExpression)
+	key := parser.Or(constParser(identParser()), stringParser(), keyExpression)
 	value := parser.Second(parser.Sep(parser.Char(':')), pipelineParser())
 
 	kv := parser.Map([]parser.Named{
@@ -353,9 +378,8 @@ func exprParser() parser.Parser {
 		base = parser.Or(constParser(parser.Or(
 			nullParser(),
 			boolParser(),
-			stringParser(),
 			numberParser(),
-		)), base)
+		)), stringParser(), base)
 		base = parser.Or(pipeline, expandParser(), base)
 		base = NewOperatorTable().
 			LeftInfix(parser.Sep(parser.Token("*")), 90).

@@ -12,11 +12,32 @@ import (
 func TestStringParser(t *testing.T) {
 	r, err := parser.ParseString(stringParser(), `"test"`)
 	assert.NoError(t, err)
-	assert.Equal(t, "test", r)
+	assert.Equal(t, &filter.String{
+		Filters: []filter.Filter{constFilter("test")},
+	}, r)
 
 	r, err = parser.ParseString(stringParser(), `"tes\u0074\n"`)
 	assert.NoError(t, err)
-	assert.Equal(t, "test\n", r)
+	assert.Equal(t, &filter.String{
+		Filters: []filter.Filter{constFilter("tes"), constFilter("t"), constFilter("\n")},
+	}, r)
+
+	r, err = parser.ParseString(stringParser(), `"test \(.interpolation)!"`)
+	assert.NoError(t, err)
+	assert.Equal(t, &filter.String{
+		Filters: []filter.Filter{
+			constFilter("test "),
+			&filter.Scope{
+				&filter.Pipe{
+					Filter: &filter.Selector{
+						Recall: &context.PipeRecall{},
+						Tree:   []filter.Filter{constFilter("interpolation")},
+					},
+				},
+			},
+			constFilter("!"),
+		},
+	}, r)
 
 	r, err = parser.ParseString(stringParser(), `"not terminated`)
 	assert.EqualError(t, err, "expected a character, got error Reached end of input at line 0, col 15")
@@ -64,8 +85,8 @@ func TestFuncParser(t *testing.T) {
 	assert.Equal(t, &filter.Call{
 		Function: "fn",
 		Arguments: []filter.Filter{
-			&filter.Pipe{Filter: str("a")},
-			&filter.Pipe{Filter: &filter.Const{context.NewConstValuer(int64(10))}},
+			&filter.Pipe{Filter: stringFilter("a")},
+			&filter.Pipe{Filter: constFilter(int64(10))},
 		},
 	}, r)
 }
@@ -82,14 +103,14 @@ func TestSelectorParser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, &filter.Selector{
 		Recall: &context.PipeRecall{},
-		Tree:   []filter.Filter{str("foo"), str("bar")},
+		Tree:   []filter.Filter{constFilter("foo"), constFilter("bar")},
 	}, r)
 
 	r, err = parser.ParseString(selectorParser(false), `."foo"."$bar$"`)
 	assert.NoError(t, err)
 	assert.Equal(t, &filter.Selector{
 		Recall: &context.PipeRecall{},
-		Tree:   []filter.Filter{str("foo"), str("$bar$")},
+		Tree:   []filter.Filter{stringFilter("foo"), stringFilter("$bar$")},
 	}, r)
 
 	r, err = parser.ParseString(selectorParser(true), "$bucket")
@@ -107,7 +128,7 @@ func TestSelectorParser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, &filter.Selector{
 		Recall: &context.VariableRecall{Name: "bucket"},
-		Tree:   []filter.Filter{str("foo"), str("bar")},
+		Tree:   []filter.Filter{constFilter("foo"), constFilter("bar")},
 	}, r)
 }
 
@@ -119,15 +140,9 @@ func TestArrayParser(t *testing.T) {
 	r, err = parser.ParseString(arrayParser(), "[1, 2, 3]")
 	assert.NoError(t, err)
 	assert.Equal(t, &filter.Cons{Filters: []filter.Filter{
-		&filter.Pipe{
-			Filter: &filter.Const{context.NewConstValuer(int64(1))},
-		},
-		&filter.Pipe{
-			Filter: &filter.Const{context.NewConstValuer(int64(2))},
-		},
-		&filter.Pipe{
-			Filter: &filter.Const{context.NewConstValuer(int64(3))},
-		},
+		&filter.Pipe{Filter: constFilter(int64(1))},
+		&filter.Pipe{Filter: constFilter(int64(2))},
+		&filter.Pipe{Filter: constFilter(int64(3))},
 	}}, r)
 
 	r, err = parser.ParseString(arrayParser(), "[.[] | .test, []]")
@@ -140,7 +155,7 @@ func TestArrayParser(t *testing.T) {
 			Next: &filter.Pipe{
 				Filter: &filter.Selector{
 					Recall: &context.PipeRecall{},
-					Tree:   []filter.Filter{str("test")},
+					Tree:   []filter.Filter{constFilter("test")},
 				},
 			},
 		},
@@ -195,14 +210,14 @@ func TestExpandParser(t *testing.T) {
 				Filter: &filter.Expand{
 					Filter: &filter.Selector{
 						Recall: &context.PipeRecall{},
-						Tree:   []filter.Filter{str("foo")},
+						Tree:   []filter.Filter{stringFilter("foo")},
 					},
 				},
 			},
 			Next: &filter.Pipe{
 				Filter: &filter.Selector{
 					Recall: &context.PipeRecall{},
-					Tree:   []filter.Filter{str("bar")},
+					Tree:   []filter.Filter{constFilter("bar")},
 				},
 			},
 		},
@@ -214,14 +229,14 @@ func TestExprParser(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, &filter.Selector{
 		Recall: &context.PipeRecall{},
-		Tree:   []filter.Filter{str("foo"), str("bar")},
+		Tree:   []filter.Filter{constFilter("foo"), constFilter("bar")},
 	}, r)
 
 	r, err = parser.ParseString(exprParser(), `."foo"."$bar$"`)
 	assert.NoError(t, err)
 	assert.Equal(t, &filter.Selector{
 		Recall: &context.PipeRecall{},
-		Tree:   []filter.Filter{str("foo"), str("$bar$")},
+		Tree:   []filter.Filter{stringFilter("foo"), stringFilter("$bar$")},
 	}, r)
 
 	r, err = parser.ParseString(exprParser(), `($x + 1) * 40`)
@@ -233,11 +248,11 @@ func TestExprParser(t *testing.T) {
 				Filter: &filter.Op2{
 					Operator: "+",
 					Left:     &filter.Selector{Recall: &context.VariableRecall{Name: "x"}, Tree: []filter.Filter{}},
-					Right:    &filter.Const{context.NewConstValuer(int64(1))},
+					Right:    constFilter(int64(1)),
 				},
 			},
 		},
-		Right: &filter.Const{context.NewConstValuer(int64(40))},
+		Right: constFilter(int64(40)),
 	}, r)
 
 	r, err = parser.ParseString(exprParser(), "(.a | .b)")
@@ -246,12 +261,12 @@ func TestExprParser(t *testing.T) {
 		Filter: &filter.Pipe{
 			Filter: &filter.Selector{
 				Recall: &context.PipeRecall{},
-				Tree:   []filter.Filter{str("a")},
+				Tree:   []filter.Filter{constFilter("a")},
 			},
 			Next: &filter.Pipe{
 				Filter: &filter.Selector{
 					Recall: &context.PipeRecall{},
-					Tree:   []filter.Filter{str("b")},
+					Tree:   []filter.Filter{constFilter("b")},
 				},
 			},
 		},
@@ -264,7 +279,7 @@ func TestPipelineParser(t *testing.T) {
 	assert.Equal(t, &filter.Pipe{
 		Filter: &filter.Selector{
 			Recall: &context.PipeRecall{},
-			Tree:   []filter.Filter{str("foo"), str("bar")},
+			Tree:   []filter.Filter{constFilter("foo"), constFilter("bar")},
 		},
 	}, r)
 
@@ -273,12 +288,12 @@ func TestPipelineParser(t *testing.T) {
 	assert.Equal(t, &filter.Pipe{
 		Filter: &filter.Selector{
 			Recall: &context.PipeRecall{},
-			Tree:   []filter.Filter{str("a")},
+			Tree:   []filter.Filter{constFilter("a")},
 		},
 		Next: &filter.Pipe{
 			Filter: &filter.Selector{
 				Recall: &context.PipeRecall{},
-				Tree:   []filter.Filter{str("b")},
+				Tree:   []filter.Filter{constFilter("b")},
 			},
 		},
 	}, r)
@@ -311,18 +326,24 @@ func TestPipelineParser(t *testing.T) {
 	assert.Equal(t, &filter.Pipe{
 		Filter: &filter.Selector{
 			Recall: &context.PipeRecall{},
-			Tree:   []filter.Filter{str("a")},
+			Tree:   []filter.Filter{constFilter("a")},
 		},
 		Assignment: &context.SimpleAssignment{Name: "a"},
 		Next: &filter.Pipe{
 			Filter: &filter.Selector{
 				Recall: &context.PipeRecall{},
-				Tree:   []filter.Filter{str("b")},
+				Tree:   []filter.Filter{constFilter("b")},
 			},
 		},
 	}, r)
 }
 
-func str(in string) *filter.Const {
+func stringFilter(in string) *filter.String {
+	return &filter.String{
+		Filters: []filter.Filter{constFilter(in)},
+	}
+}
+
+func constFilter(in interface{}) *filter.Const {
 	return &filter.Const{context.NewConstValuer(in)}
 }
